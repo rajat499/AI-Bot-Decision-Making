@@ -12,17 +12,19 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 
+import distanceCalculator
 from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions
 import game
+from util import nearestPoint
 
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'DummyAgent', second = 'DummyAgent'):
+               first = 'offensive_agent', second = 'defensive_agent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -71,6 +73,8 @@ class DummyAgent(CaptureAgent):
     on initialization time, please take a look at
     CaptureAgent.registerInitialState in captureAgents.py.
     '''
+    self.start = gameState.getAgentPosition(self.index)
+    self.time_count = 0; self.food_count = 0
     CaptureAgent.registerInitialState(self, gameState)
 
     '''
@@ -79,14 +83,78 @@ class DummyAgent(CaptureAgent):
 
 
   def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
+    if self.food_count >= 7:
+      return self.fall_back(gameState)
+    if self.time_count > 0:
+      self.time_count -= 1
     actions = gameState.getLegalActions(self.index)
+    values = [self.evaluate(gameState, a) for a in actions]
+    maxValue = max(values)
+    bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+    foodLeft = len(self.getFood(gameState).asList())
+    if foodLeft <= 2:
+      bestDist = 9999
+      for action in actions:
+        successor = self.getSuccessor(gameState, action)
+        pos2 = successor.getAgentPosition(self.index)
+        dist = self.getMazeDistance(self.start,pos2)
+        if dist < bestDist:
+          bestAction = action
+          bestDist = dist
+      return bestAction
+    succ = self.getSuccessor(gameState,random.choice(bestActions))
+    succ_pos = succ.getAgentPosition(self.index)
+    rem_food = self.getFood(gameState).asList()
+    if succ_pos in rem_food:
+      self.food_count += 1
+    return random.choice(bestActions)
+
+  def fall_back(self,gameState):
+    best_dis = 9999
+    ans = Directions.STOP
+    actions = gameState.getLegalActions(self.index)
+    for elem in actions:
+      successor = self.getSuccessor(gameState,elem)
+      if self.getClosestEnemyPosition(successor) < 4:
+          continue
+      pos2 = successor.getAgentState(self.index).getPosition()
+      maze_dis = self.getMazeDistance(pos2,self.start)
+      if maze_dis < best_dis:
+        best_dis = maze_dis
+        ans = elem
+    successor = self.getSuccessor(gameState, bestAction) 
+    if not successor.getAgentState(self.index).isPacman:
+      self.food_count = 0
+    return ans
+
+  def getSuccessor(self, gameState, action):
+    successor = gameState.generateSuccessor(self.index, action)
+    pos = successor.getAgentState(self.index).getPosition()
+    if pos != nearestPoint(pos):
+      return successor.generateSuccessor(self.index, action)
+    else:
+      return successor
+
+
+  def evaluate(self, gameState, action):
+    features = self.getFeatures(gameState, action)
+    weights = self.getWeights(gameState, action)
+    return features * weights
+
+  def getFeatures(self, gameState, action):
+    features = util.Counter()
+    successor = self.getSuccessor(gameState, action)
+    features['successorScore'] = self.getScore(successor)
+    return features
+
+  def getWeights(self, gameState, action):
+    return {'successorScore': 1.0}
+
+
 
     '''
     You should change this in your own agent.
     '''
 
-    return random.choice(actions)
+  
 
