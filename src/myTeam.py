@@ -24,7 +24,7 @@ from util import nearestPoint
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'offensive_agent', second = 'defensive_agent'):
+               first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -115,7 +115,7 @@ class DummyAgent(CaptureAgent):
     actions = gameState.getLegalActions(self.index)
     for elem in actions:
       successor = self.getSuccessor(gameState,elem)
-      if self.getClosestEnemyPosition(successor) < 4:
+      if self.f1(successor) < 4:
           continue
       pos2 = successor.getAgentState(self.index).getPosition()
       maze_dis = self.getMazeDistance(pos2,self.start)
@@ -125,6 +125,36 @@ class DummyAgent(CaptureAgent):
     successor = self.getSuccessor(gameState, bestAction) 
     if not successor.getAgentState(self.index).isPacman:
       self.food_count = 0
+    return ans
+
+  def f0(self,gameState):
+    ans = []
+    opp = self.getOpponents(gameState)
+    for elem in opp:
+      if not gameState.getAgentPosition(elem) == None:
+        temp = gameState.getAgentState(elem)
+        temp1 = gameState.getAgentPosition(elem)
+        ans.append((temp,temp1))
+    return ans
+
+  def f1(self,gameState):
+    ans = 9999
+    pos = gameState.getAgentPosition(self.index)
+    opp = self.f0(gameState)
+    for state,position in opp:
+      temp = self.getMazeDistance(pos,position)
+      if temp < ans:
+        ans = temp
+      if temp == 0:
+        return 1000
+    return ans
+
+  def f2(self,gameState):
+    ans = []
+    opp = self.f0(gameState)
+    for state,position in opp:
+      if state.isPacman and state.getPosition() != None:
+        ans.append((state,position))
     return ans
 
   def getSuccessor(self, gameState, action):
@@ -150,11 +180,72 @@ class DummyAgent(CaptureAgent):
   def getWeights(self, gameState, action):
     return {'successorScore': 1.0}
 
+class OffensiveReflexAgent(DummyAgent):
 
+  def getFeatures(self, gameState, action):
+    features = util.Counter()
+    successor = self.getSuccessor(gameState, action)
+    foodList = self.getFood(successor).asList()    
+    features['successorScore'] = -len(foodList)#self.getScore(successor)
 
-    '''
-    You should change this in your own agent.
-    '''
+    # Compute distance to the nearest food
+
+    if len(foodList) > 0: # This should always be True,  but better safe than sorry
+      myPos = successor.getAgentState(self.index).getPosition()
+      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+      features['distanceToFood'] = 100 - minDistance
+
+    if self.f1(successor) == 9999:
+      features['enemy'] = 0
+    else:
+      features['enemy'] = self.f1(successor)
+      features['distanceToFood'] = 0; features['capsule'] = 0; features['successorScore'] = 0
+      return features
+    cap = 0
+    all_capsules = self.getCapsules(successor)
+    if len(all_capsules) != 0:
+      temp = []
+      for elem in all_capsules:
+        dis = self.getMazeDistance(myPos,cap)
+        temp.append(dis)
+      capsule = min(temp)
+      if cap != 0:
+        features['capsule'] = 1/cap
+    if myPos in all_capsules:
+      self.time_count = 40
+    if self.time_count > 0:
+      features['distanceToFood'] *= 9999
+      features['enemy'] = 0; features['capsule'] = 0
+    return features
+
+  def getWeights(self, gameState, action):
+    return {'successorScore': 100, 'distanceToFood': -1, 'enemy': -50, 'capsule': 1}
+
+class DefensiveReflexAgent(DummyAgent):
+
+  def getFeatures(self, gameState, action):
+    features = util.Counter()
+    successor = self.getSuccessor(gameState, action)
+    myState = successor.getAgentState(self.index)
+    myPos = myState.getPosition()
+    features['onDefense'] = 1
+    if myState.isPacman: features['onDefense'] = 0 
+    inv = self.f2(successor)
+    features['numInvaders'] = len(inv)
+    if len(inv) > 0:
+      temp = []
+      for state,position in inv:
+        dis = self.getMazeDistance(myPos,position)
+        temp.append(dis)
+      features['invaderDistance'] = min(temp)
+    if action == Directions.STOP: features['stop'] = 1
+    rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
+    if action == rev: features['reverse'] = 1
+    return features
+
+  def getWeights(self, gameState, action):
+    return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -100, 'stop': -100, 'reverse': -2}
+
 
   
 
