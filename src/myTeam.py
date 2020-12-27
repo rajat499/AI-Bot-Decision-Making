@@ -85,9 +85,9 @@ class DummyAgent(CaptureAgent):
 
 
   def chooseAction(self, gameState):
-    # print("food count = ",self.food_count)
-    # print("time count = ", self.time_count)
-    if self.food_count >= 3:
+    print("food count = ",self.food_count)
+    print("time count = ", self.time_count)
+    if self.food_count >= 6:
       print("intiate fall back")
       return self.fall_back(gameState)
     actions = gameState.getLegalActions(self.index)
@@ -115,20 +115,20 @@ class DummyAgent(CaptureAgent):
     rem_food = self.getFood(gameState).asList()
     # print("food list = ", rem_food)
     if self.index == 1:
-      print("succ pos chosen for next move = ",succ_pos)
+      print("................succ pos chosen for next move = ",succ_pos)
     if succ_pos in rem_food:
-      print("eating food !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+      # print("eating food !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
       self.food_count += 1
     return ans
 
   def fall_back(self,gameState):
-    print("entered fall back....................")
+    print("entered fall back")
     best_dis = 9999
     ans = Directions.STOP
     actions = gameState.getLegalActions(self.index)
     for elem in actions:
       successor = self.getSuccessor(gameState,elem)
-      if self.f1(successor) < 6:
+      if self.f1(successor) < 5:
           continue
       pos2 = successor.getAgentState(self.index).getPosition()
       maze_dis = self.getMazeDistance(pos2,self.start)
@@ -204,25 +204,26 @@ class OffensiveReflexAgent(DummyAgent):
     successor = self.getSuccessor(gameState, action)
     foodList = self.getFood(successor).asList()    
     features['successorScore'] = -len(foodList)
+    features['capsule'] = 0; features['enemy'] = 0
 
     if len(foodList) > 0: 
       myPos = successor.getAgentState(self.index).getPosition()
       minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
       print("min dist to food = ", minDistance, " , at position = ",myPos)
-      features['distanceToFood'] = minDistance
+      features['distanceToFood'] = 100 - minDistance
 
     print("distance to closest enemy = ",self.f1(successor))
-    if self.f1(successor) > 5:
-      features['enemy'] = 0
-    else:
-      features['capsule'] = 0; features['successorScore'] = 0
-      if self.f1(successor) == 0:
-        features['enemy'] = 9999
-      else:
-        features['enemy'] = self.f1(successor)
+    if self.f1(successor) <= 5:
+      # features['enemy'] = 0
+    # else:
+      # features['capsule'] = 0; features['successorScore'] = 0
+      features['enemy'] = 100 - self.f1(successor)
       return features
     cap = 0
     all_capsules = self.getCapsules(successor)
+    if myPos in all_capsules:
+      features['capsule'] = 9999
+      self.time_count = 40
     if len(all_capsules) != 0:
       temp = []
       for elem in all_capsules:
@@ -231,21 +232,16 @@ class OffensiveReflexAgent(DummyAgent):
       cap = min(temp)
       if cap != 0:
         features['capsule'] = 1/cap
-    else:
-      features['capsule'] = 0
-    if myPos in all_capsules:
-      self.time_count = 40
     if self.time_count > 0:
-      features['distanceToFood'] += 9999
-      features['enemy'] = 0; features['capsule'] = 0
+      features['distanceToFood'] = 9999
+      # features['enemy'] = 0; features['capsule'] = 0
     return features
 
   def getWeights(self, gameState, action):
     # print("getting offensive weights")
-    return {'successorScore': 50, 'distanceToFood': -1, 'enemy': -50, 'capsule': 1}
+    return {'successorScore': 100, 'distanceToFood': 1.5, 'enemy': -1.5, 'capsule': 1}
 
 class DefensiveReflexAgent(DummyAgent):
-
   def getFeatures(self, gameState, action):
     # print("defensive index = ",self.index)
     features = util.Counter()
@@ -274,4 +270,5 @@ class DefensiveReflexAgent(DummyAgent):
 
 
   
+
 
